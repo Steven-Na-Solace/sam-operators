@@ -1,0 +1,114 @@
+# Solace Agent Mesh Agent Configuration
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: a2a_agent.log
+
+!include ../shared_config.yaml
+
+apps:
+  - name: "GetAllOperators.__app"
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: "${NAMESPACE}"
+      supports_streaming: true
+      agent_name: "GetAllOperators"
+      display_name: "Get All Operators Agent"
+      model: *general_model 
+
+      instruction: |
+        You are a helpful AI assistant named Get all operators..
+      
+      tools: 
+        - component_base_path: .
+          component_module: src.operators.operators_api
+          function_name: get_all_operators
+          tool_description: Returns a list of all production operators in the SECOM MES database.
+          tool_name: get_all_operators
+          tool_type: python
+
+      session_service: 
+        type: "sql"
+        default_behavior: "PERSISTENT"
+        database_url: "${GET_ALL_OPERATORS._DATABASE_URL, sqlite:///get_all_operators.db}"
+      artifact_service: *default_artifact_service
+      
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+      data_tools_config: *default_data_tools_config
+
+      # Agent Card Definition
+      agent_card:
+        description: |
+          Returns a list of all production operators in the SECOM MES database.
+        defaultInputModes: [object] 
+        defaultOutputModes: [object] 
+        skills: 
+          - description: 'Retrieves a complete list of all production operators in the system.
+              Returns comprehensive operator roster including all active and inactive
+              operators with their full details.'
+            id: get_all_operators
+            name: Get All Operators
+            input_schema:
+              type: object
+              properties:
+                base_url:
+                  type: string
+                  description:
+                    Optional base URL for the API (default: http://localhost:8080/api/v1)
+                  example: "http://localhost:8080/api/v1"
+            output_schema:
+              type: array
+              items:
+                type: object
+                properties:
+                  operatorId:
+                    type: integer
+                    format: int32
+                    description: Unique operator identifier
+                  operatorCode:
+                    type: string
+                    description: Unique operator code
+                  operatorName:
+                    type: string
+                    description: Full name of the operator
+                  employeeNumber:
+                    type: string
+                    description: Employee number
+                  department:
+                    type: string
+                    description: Department name
+                  hireDate:
+                    type: string
+                    format: date
+                    description: Date operator was hired
+                  email:
+                    type: string
+                    description: Operator email address
+                  status:
+                    type: string
+                    description: Operator status
+                  createdAt:
+                    type: string
+                    format: date-time
+                    description: Record creation timestamp
+                  updatedAt:
+                    type: string
+                    format: date-time
+                    description: Record update timestamp
+      
+      # Discovery & Communication
+      agent_card_publishing: 
+        interval_seconds: 10
+      agent_discovery: 
+        enabled: true
+      inter_agent_communication:
+        allow_list: []
+        deny_list: [] 
+        request_timeout_seconds: 600

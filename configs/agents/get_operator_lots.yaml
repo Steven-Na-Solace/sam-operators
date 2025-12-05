@@ -1,0 +1,164 @@
+# Solace Agent Mesh Agent Configuration
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: a2a_agent.log
+
+!include ../shared_config.yaml
+
+apps:
+  - name: "GetAllOperatorLot.__app"
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: "${NAMESPACE}"
+      supports_streaming: true
+      agent_name: "GetOperatorLots"
+      display_name: "Get operators Lot Agent"
+      model: *general_model 
+
+      instruction: |
+        Returns all production lots processed by a specific operator. This includes
+        complete lot information with related entities (product type, equipment, shift).
+      
+      tools: 
+        - component_base_path: .
+          component_module: src.operators.operators_api
+          function_name: get_operator_lots
+          tool_description: |
+            Retrieves all production lots that were processed by a specific operator.
+            Returns complete lot information including product details, equipment used,
+            shift information, and production metrics. Useful for tracking operator
+            productivity, quality performance, and work history.
+          tool_name: get_operator_lots
+          tool_type: python
+
+      session_service: 
+        type: "sql"
+        default_behavior: "PERSISTENT"
+        database_url: "${GET_ALL_OPERATORS._DATABASE_URL, sqlite:///get_operator_lots.db}"
+      artifact_service: *default_artifact_service
+      
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+      data_tools_config: *default_data_tools_config
+
+      # Agent Card Definition
+      agent_card:
+        description: |
+          Retrieves all production lots that were processed by a specific operator.
+          Returns complete lot information including product details, equipment used,
+          shift information, and production metrics. Useful for tracking operator
+          productivity, quality performance, and work history.
+        defaultInputModes: [object] 
+        defaultOutputModes: [object] 
+        skills: 
+          - description: 'Returns all production lots processed by a specific operator. This includes complete lot information with related entities (product type, equipment, shift).'
+            id: get_operator_lots
+            name: Get Operator Production Lots
+            input_schema:
+              type: object
+              required:
+                - operator_id
+              properties:
+                operator_id:
+                  type: integer
+                  format: int32
+                  description: Unique identifier for the operator
+                  example: 1
+                base_url:
+                  type: string
+                  description: "Optional base URL for the API (default: http://localhost:8080/api/v1)"
+                  example: "http://localhost:8080/api/v1"
+            output_schema:
+              type: array
+              items:
+                type: object
+                properties:
+                  lotId:
+                    type: integer
+                    format: int32
+                    description: Unique lot identifier
+                  lotNumber:
+                    type: string
+                    description: Lot number (e.g., LOT001)
+                  productType:
+                    type: object
+                    description: Product type information
+                    properties:
+                      productTypeId:
+                        type: integer
+                      productCode:
+                        type: string
+                      productName:
+                        type: string
+                      productFamily:
+                        type: string
+                      targetYield:
+                        type: number
+                      specificationVersion:
+                        type: string
+                  equipment:
+                    type: object
+                    description: Equipment information
+                    properties:
+                      equipmentId:
+                        type: integer
+                      equipmentCode:
+                        type: string
+                      equipmentName:
+                        type: string
+                      equipmentType:
+                        type: string
+                      location:
+                        type: string
+                      status:
+                        type: string
+                  operator:
+                    type: object
+                    description: Operator information
+                  shift:
+                    type: object
+                    description: Shift information
+                    properties:
+                      shiftId:
+                        type: integer
+                      shiftCode:
+                        type: string
+                      shiftName:
+                        type: string
+                  productionStart:
+                    type: string
+                    format: date-time
+                    description: Production start timestamp
+                  productionEnd:
+                    type: string
+                    format: date-time
+                    description: Production end timestamp
+                  waferCount:
+                    type: integer
+                    description: Number of wafers in lot
+                  status:
+                    type: string
+                    description: Lot status (e.g., Completed, In Progress)
+                  createdAt:
+                    type: string
+                    format: date-time
+                  updatedAt:
+                    type: string
+                    format: date-time
+      
+      # Discovery & Communication
+      agent_card_publishing: 
+        interval_seconds: 10
+      agent_discovery: 
+        enabled: true
+      inter_agent_communication:
+        allow_list: []
+        deny_list: [] 
+        request_timeout_seconds: 600

@@ -1,0 +1,122 @@
+# Solace Agent Mesh Agent Configuration
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: a2a_agent.log
+
+!include ../shared_config.yaml
+
+apps:
+  - name: "GetOperatorByCode.__app"
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: "${NAMESPACE}"
+      supports_streaming: true
+      agent_name: "GetOperatorByCode"
+      display_name: "Get operator by code"
+      model: *general_model 
+
+      instruction: |
+        Returns operator information by their unique operator code. Operator codes are
+        typically used as business identifiers for quick lookups.
+      
+      tools: 
+        - component_base_path: .
+          component_module: src.operators.operators_api
+          function_name: get_operator_by_code
+          tool_description: Retrieves operator information using their unique operator code (business identifier). Operator codes are human-readable identifiers used in daily operations for quick operator lookup. Returns complete operator profile.
+          tool_name: get_operator_by_code
+          tool_type: python
+
+      session_service: 
+        type: "sql"
+        default_behavior: "PERSISTENT"
+        database_url: "${GET_ALL_OPERATORS._DATABASE_URL, sqlite:///get_operator_by_code.db}"
+      artifact_service: *default_artifact_service
+      
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+      data_tools_config: *default_data_tools_config
+
+      # Agent Card Definition
+      agent_card:
+        description: |
+          Retrieves operator information using their unique operator code (business
+          identifier). Operator codes are human-readable identifiers used in daily
+          operations for quick operator lookup. Returns complete operator profile.
+        defaultInputModes: [object] 
+        defaultOutputModes: [object] 
+        skills: 
+          - description: 'Retrieves operator information using their unique operator code (business
+                 identifier). Operator codes are human-readable identifiers used in daily
+                 operations for quick operator lookup. Returns complete operator profile.'
+            id: get_operator_by_code
+            name: Get Operator by Code
+            input_schema:
+              type: object
+              required:
+                - code
+              properties:
+                code:
+                  type: string
+                  description: Unique operator code (business identifier)
+                  example: "OP001"
+                  pattern: "^OP\\d{3}$"
+                base_url:
+                  type: string
+                  description:
+                    "Optional base URL for the API (default: http://localhost:8080/api/v1)"
+                  example: "http://localhost:8080/api/v1"
+
+            output_schema:
+              type: object
+              properties:
+                operatorId:
+                  type: integer
+                  format: int32
+                  description: Unique operator identifier
+                operatorCode:
+                  type: string
+                  description: Unique operator code (matches input)
+                operatorName:
+                  type: string
+                  description: Full name of the operator
+                employeeNumber:
+                  type: string
+                  description: Employee number
+                department:
+                  type: string
+                  description: Department name
+                hireDate:
+                  type: string
+                  format: date
+                  description: Date operator was hired
+                email:
+                  type: string
+                  description: Operator email address
+                status:
+                  type: string
+                  description: Operator status
+                createdAt:
+                  type: string
+                  format: date-time
+                  description: Record creation timestamp
+                updatedAt:
+                  type: string
+                  format: date-time
+                  description: Record update timestamp
+      # Discovery & Communication
+      agent_card_publishing: 
+        interval_seconds: 10
+      agent_discovery: 
+        enabled: true
+      inter_agent_communication:
+        allow_list: []
+        deny_list: [] 
+        request_timeout_seconds: 600

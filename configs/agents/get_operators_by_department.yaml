@@ -1,0 +1,132 @@
+# Solace Agent Mesh Agent Configuration
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: a2a_agent.log
+
+!include ../shared_config.yaml
+
+apps:
+  - name: "GetOperatorsByDepartment.__app"
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: "${NAMESPACE}"
+      supports_streaming: true
+      agent_name: "GetOperatorsByDepartment"
+      display_name: "Get Operators by Department"
+      model: *general_model
+
+      instruction: |
+        Returns all operators working in a specific department. Useful for department-level
+        resource management and reporting. Supports departments: Production, Quality,
+        Maintenance, Engineering.
+
+      tools:
+        - component_base_path: .
+          component_module: src.operators.operators_api
+          function_name: get_operators_by_department
+          tool_description: |
+            Retrieves all operators assigned to a specific department. Returns complete
+            operator profiles for all personnel in the specified department. Supports
+            department-level workforce planning, resource allocation, and organizational
+            reporting.
+          tool_name: get_operators_by_department
+          tool_type: python
+
+      session_service:
+        type: "sql"
+        default_behavior: "PERSISTENT"
+        database_url: "${GET_OPERATORS_BY_DEPARTMENT_DATABASE_URL, sqlite:///get_operators_by_department.db}"
+      artifact_service: *default_artifact_service
+
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+      data_tools_config: *default_data_tools_config
+
+      # Agent Card Definition
+      agent_card:
+        description: |
+          Retrieves all operators assigned to a specific department. Returns complete
+          operator profiles for all personnel in the specified department. Supports
+          department-level workforce planning, resource allocation, and organizational
+          reporting.
+        defaultInputModes: [object]
+        defaultOutputModes: [object]
+        skills:
+          - description: 'Retrieves all operators assigned to a specific department. Returns complete
+              operator profiles for all personnel in the specified department. Supports
+              department-level workforce planning, resource allocation, and organizational
+              reporting.'
+            id: get_operators_by_department
+            name: Get Operators by Department
+            input_schema:
+              type: object
+              required:
+                - department
+              properties:
+                department:
+                  type: string
+                  description: Department name to filter by
+                  example: "Production"
+                  enum: ["Production", "Quality", "Maintenance", "Engineering"]
+                base_url:
+                  type: string
+                  description:
+                    "Optional base URL for the API (default: http://localhost:8080/api/v1)"
+                  example: "http://localhost:8080/api/v1"
+
+            output_schema:
+              type: array
+              items:
+                type: object
+                properties:
+                  operatorId:
+                    type: integer
+                    format: int32
+                    description: Unique operator identifier
+                  operatorCode:
+                    type: string
+                    description: Unique operator code
+                  operatorName:
+                    type: string
+                    description: Full name of the operator
+                  employeeNumber:
+                    type: string
+                    description: Employee number
+                  department:
+                    type: string
+                    description: Department name (matches input filter)
+                  hireDate:
+                    type: string
+                    format: date
+                    description: Date operator was hired
+                  email:
+                    type: string
+                    description: Operator email address
+                  status:
+                    type: string
+                    description: Operator status
+                  createdAt:
+                    type: string
+                    format: date-time
+                    description: Record creation timestamp
+                  updatedAt:
+                    type: string
+                    format: date-time
+                    description: Record update timestamp
+
+      # Discovery & Communication
+      agent_card_publishing:
+        interval_seconds: 10
+      agent_discovery:
+        enabled: true
+      inter_agent_communication:
+        allow_list: []
+        deny_list: []
+        request_timeout_seconds: 600

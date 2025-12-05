@@ -1,0 +1,121 @@
+# Solace Agent Mesh Orchestrator Agent Configurations
+
+log:
+  stdout_log_level: INFO
+  log_file_level: INFO
+  log_file: orchestrator-agent.log
+
+# Shared SAM config
+!include ../shared_config.yaml
+
+apps:
+  - name: operators-orchestrator-agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE} 
+      supports_streaming: true
+      agent_name: "OperatorsOrchestratorAgent"
+      display_name: "OperatorsOrchestratorAgent"
+      model: *planning_model
+
+      instruction: |
+        You are the Operators Orchestrator Agent, a specialized component within an AI agentic system focused on SECOM Manufacturing Execution System (MES) operator data and workforce management.
+  
+        Your primary domain expertise includes:
+        - **Operator Management**: Retrieving and managing production operator information including profiles, employment details, department assignments, and status tracking
+        - **Production Tracking**: Accessing operator production history including lots processed, equipment used, shift assignments, and wafer counts
+        - **Workforce Analytics**: Supporting department-level reporting, operator performance analysis, and workforce planning
+  
+        Your responsibilities are to:
+        1. Process operator-related tasks received from external sources via the system Gateway or other orchestrators.
+        2. Analyze each task to determine the optimal execution strategy:
+           a. Direct Execution: Handle operator data queries directly using available tools (get operator by ID/code, list operators, filter by department, get production lots)
+           b. Single Agent Delegation: If the task requires capabilities outside operator management, delegate to appropriate peer agents
+           c. Multi-Agent Coordination: For complex analytics requiring operator data combined with other domain data, coordinate with peer agents while providing operator-specific information
+           d. If the task requests data for a range of values (e.g., lot_id 1234 to 1240) and the agent_card only provides a single-value lookup function (e.g., get_result_by_lot_id(lot_id)), handle this by looping through each value in the range and invoking the function once per iteration. Aggregate the results before returning them to the user.
+        Available Operator Capabilities:
+        - Retrieve individual operator profiles by ID or operator code
+        - List all operators in the system
+        - Filter operators by department (Production, Quality, Maintenance, Engineering)
+        - Get comprehensive operator production history (lots, equipment, shifts, wafer counts)
+        - Generate operator summaries combining profile and production data
+        - Search operators with multi-criteria filtering (department + status)
+  
+        Data Model Knowledge:
+        - Operators have: operatorId, operatorCode, operatorName, employeeNumber, department, hireDate, email, status
+        - Production Lots include: lotNumber, productType, equipment, shift, productionStart/End, waferCount, status
+        - Related entities: ProductType, Equipment, Shift with full nested details
+  
+        Artifact Management Guidelines:
+        - If an artifact was created during the task (either by yourself or a delegated agent), you must use the `list_artifacts` tool to get the details of the created artifacts.
+        - You must then review the list of artifacts and return the ones that are important for the user by using artifact_return embed.
+        - Provide regular progress updates by including «status_update:Your message here» in your text responses, especially before initiating any tool call. Note: This is an embed directive in your response text, NOT a function to call.
+        - Always respond in English regardless of the input language, but keep data extracted from databases in its original format (English).
+        
+        API Integration:
+        - All operator data is retrieved from SECOM MES REST API (base URL: http://localhost:8080/api/v1)
+        - Functions are async and integrate seamlessly with the Solace Agent Mesh framework
+
+      inject_system_purpose: true
+      inject_response_format: true
+      inject_user_profile: true
+      session_service: 
+        type: "sql"
+        database_url: "${ORCHESTRATOR_DATABASE_URL, sqlite:///orchestrator.db}"
+        default_behavior: "PERSISTENT"
+      artifact_service: *default_artifact_service
+      artifact_handling_mode: "reference" 
+      enable_embed_resolution: true 
+      enable_artifact_content_instruction: true 
+      data_tools_config: *default_data_tools_config
+      tools: 
+        - group_name: artifact_management
+          tool_type: builtin-group
+        - tool_type: builtin-group
+          group_name: "data_analysis"
+
+      agent_card:
+        description: "The Orchestrator component. It manages tasks and coordinates multi-agent workflows."
+        defaultInputModes: [text]
+        defaultOutputModes: [text, file]
+        skills:
+        - id: strategic_planning
+          name: Strategic Planning
+          description: Analyzes complex requests and creates structured execution plans, breaking down multi-step goals into logical sequences with clear checkpoints and progress tracking.
+
+        - id: agent_coordination
+          name: Agent Coordination
+          description: Identifies the most suitable specialized agents for specific tasks and coordinates multi-agent workflows, managing data handoffs and execution sequences to achieve complex objectives efficiently.
+
+        - id: artifact_management
+          name: Artifact Management
+          description: Creates, transforms, and manages various artifact types including documents, reports, and data files, with capabilities for content generation, formatting, embedding dynamic data, and applying sophisticated data transformations.
+
+        - id: operator_lookup
+          name: Operator Lookup
+          description: Retrieves detailed operator information by unique ID or operator code. Returns complete operator profiles including name, employee number, department, hire date, email, and current status.
+
+        - id: operator_listing
+          name: Operator Listing
+          description: Lists all operators in the SECOM MES system or filters by department. Supports workforce roster generation and department-level headcount reporting for Production, Quality, Maintenance, and Engineering departments.
+
+        - id: operator_production_history
+          name: Operator Production History
+          description: Retrieves comprehensive production lot history for specific operators. Includes lot numbers, product types, equipment used, shift assignments, production timestamps, wafer counts, and completion status. Enables operator productivity and performance analysis.
+
+        - id: operator_analytics
+          name: Operator Analytics
+          description: Performs operator-focused analytics including multi-criteria searches (by department and status), comprehensive operator summaries combining profile and production data, and workforce planning support.
+
+      agent_card_publishing: 
+        interval_seconds: 10
+      agent_discovery: 
+        enabled: true
+      inter_agent_communication:
+        allow_list: ["GetOperatorsByDepartment","GetOperatorLots","GetOperatorByID","GetOperatorByCode","GetAllOperators"]
+        deny_list: ["OrchestratorAgent"]
+        request_timeout_seconds: 600
